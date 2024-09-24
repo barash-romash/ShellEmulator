@@ -17,28 +17,37 @@ class ShellEmulator:
         return root.find('file_system_path').text
 
     def ls(self):
-        print(*self.get_list_of_files(), sep='  ')
-        print()
+        print(*self.get_directory_file_names(), sep='  ')
 
-    def get_list_of_files(self):
+    def cut(self, str, substr):
+        f = str.find(substr)
+        if f == 0:
+            return str[len(substr)+1:]
+        return str
+
+    def get_directory_file_names(self):
         with tarfile.open(self.file_system_path) as tar:
-            all_files = tar.getnames()
+            all_files = [self.cut(f, self.current_directory) for f in tar.getnames()]
             files_here = [f for f in all_files if "/" not in f]
             return files_here
-            # TODO(Сделать проверку на директорию)
 
     def cd(self, path):
+        print(path)
+        path_list = path.split("/")
+        print(path_list)
         with tarfile.open(self.file_system_path) as tar:
-            slash_pos = path.find("/")
-            file_list = self.get_list_of_files()
-            while len(path) != 0:
-                if path[:slash_pos + 1] in file_list:
-                    path = path[slash_pos + 1:]
-                    self.current_directory += path[:slash_pos]
-                    # TODO(Завершить обновление переменных)
+            old_directory = self.current_directory
+            for i in path_list:
+                if i in self.get_directory_file_names():
+                    self.current_directory += "/" + i
+                else:
+                    self.current_directory = old_directory
+                    print(f"Директория {i} не найдена")
+                    break
+
 
     def pwd(self):
-        return self.current_directory
+        return "/home/" + self.user_name + '/' + self.current_directory
 
     def chown(self, owner, path):
         # Реализация изменения владельца
@@ -55,6 +64,10 @@ class ShellEmulator:
                 break
             elif command == 'ls':
                 self.ls()
+            elif command[:2] == 'cd':
+                self.cd(command[3:])
+            elif command == 'pwd':
+                print(self.pwd())
             # Обработка других команд
 
 
