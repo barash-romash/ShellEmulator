@@ -9,7 +9,8 @@ class ShellEmulator:
         self.users = ["User1", "User2"]
         self.user_name = self.users[0]
         self.prefix = self.user_name + ":~"
-        self.current_directory = ""
+        self.cur_dir = []
+        self.sfl = self.get_sys_file_list()
 
     def get_file_path(self, config_file):
         tree = ET.parse(config_file)
@@ -17,45 +18,52 @@ class ShellEmulator:
         return root.find('file_system_path').text
 
     def ls(self):
-        print(*self.get_directory_file_names(), sep='  ')
+        for i in self.get_dir_file_list():
+            print(*i, end='  ')
+        print()
 
-    def cut(self, str, substr):
-        f = str.find(substr)
-        if f == 0:
-            return str[len(substr)+1:]
-        return str
+    def get_dir_file_list(self):
+        fl = [f for f in self.sfl if len(f) == len(self.cur_dir) + 1]
+        fl = [f for f in fl if all(f[i] == self.cur_dir[i] for i in range(len(self.cur_dir)))]
+        fl = [f[len(self.cur_dir):] for f in fl]
+        return fl
 
-    def get_directory_file_names(self):
-        with tarfile.open(self.file_system_path) as tar:
-            all_files = [self.cut(f, self.current_directory) for f in tar.getnames()]
-            files_here = [f for f in all_files if "/" not in f]
-            return files_here
+    def get_sys_file_list(self):
+        with tarfile.open("system.tar") as tar:
+            fl = [f.split('/') for f in tar.getnames()]
+            return fl
 
     def cd(self, path):
-        print(path)
-        path_list = path.split("/")
-        print(path_list)
-        with tarfile.open(self.file_system_path) as tar:
-            old_directory = self.current_directory
-            for i in path_list:
-                if i in self.get_directory_file_names():
-                    self.current_directory += "/" + i
-                else:
-                    self.current_directory = old_directory
-                    print(f"Директория {i} не найдена")
-                    break
-
+        if path == '..':
+            self.cur_dir.pop()
+        elif path == '/':
+            self.cur_dir = []
+        elif path[0] == '/':
+            path = path[1:].split('/')
+            if path in self.get_sys_file_list():
+                self.cur_dir = path
+            else:
+                print("Не удаётся найти путь")
+        else:
+            path = path.split('/')
+            if path in self.get_dir_file_list():
+                self.cur_dir.extend(path)
+            else:
+                print("Не удаётся найти путь")
 
     def pwd(self):
-        return "/home/" + self.user_name + '/' + self.current_directory
+        print('/', end='')
+        for i in self.cur_dir:
+            print(i, end='/')
+        print()
 
     def chown(self, owner, path):
         # Реализация изменения владельца
         pass
 
-    def uniq(self, filename):
-        # Реализация фильтрации уникальных строк
-        pass
+    def uniq(self, file_name):
+        if [file_name] in self.get_dir_file_list():
+            print(1)
 
     def run(self):
         while True:
@@ -65,12 +73,14 @@ class ShellEmulator:
             elif command == 'ls':
                 self.ls()
             elif command[:2] == 'cd':
-                self.cd(command[3:])
+                if len(command) >= 4:
+                    self.cd(command[3:])
             elif command == 'pwd':
-                print(self.pwd())
+                self.pwd()
+            elif command == 'uniq':
+                self.uniq()
             # Обработка других команд
 
 
-# Пример запуска
 emulator = ShellEmulator('config.xml')
 emulator.run()
