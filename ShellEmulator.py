@@ -35,7 +35,8 @@ class ShellEmulator:
 
     def cd(self, path):
         if path == '..':
-            self.cur_dir.pop()
+            if len(self.cur_dir) != 0:
+                self.cur_dir.pop()
         elif path == '/':
             self.cur_dir = []
         elif path[0] == '/':
@@ -45,11 +46,21 @@ class ShellEmulator:
             else:
                 print("Не удаётся найти путь")
         else:
-            path = path.split('/')
-            if path in self.get_dir_file_list():
-                self.cur_dir.extend(path)
-            else:
-                print("Не удаётся найти путь")
+            path_split = path.split('/')
+            with tarfile.open(self.file_system_path, 'r') as tar:
+                if [path_split[0]] in self.get_dir_file_list() and \
+                        (self.cur_dir + path_split) in self.get_sys_file_list() \
+                        and tar.getmember(self.get_cur_dir_str()[1:]+path).isdir():# Не работает с относительными адресами
+                    self.cur_dir.extend(path_split)
+                else:
+                    print("Не удаётся найти путь")
+            # TODO(Решить проблему перемещения в директорию в виде файла)
+
+    def get_cur_dir_str(self):
+        cur_dir_str = '/'
+        for i in self.cur_dir:
+            cur_dir_str += i + '/'
+        return cur_dir_str
 
     def pwd(self):
         print('/', end='')
@@ -67,20 +78,22 @@ class ShellEmulator:
 
     def run(self):
         while True:
-            command = input(f"{self.prefix} $ ")
-            if command == 'exit':
+            line_start = f"{self.user_name}{self.get_cur_dir_str()}:~ $"
+            command = input(line_start).split(' ', 1)
+            if command[0] == 'exit':
                 break
-            elif command == 'ls':
+            elif command[0] == 'ls':
                 self.ls()
-            elif command[:2] == 'cd':
-                if len(command) >= 4:
-                    self.cd(command[3:])
-            elif command == 'pwd':
+            elif command[0] == 'pwd':
                 self.pwd()
-            elif command == 'uniq':
+            elif command[0] == 'cd':
+                if len(command) > 1:
+                    self.cd(command[1])
+            elif command[0] == 'uniq':
                 self.uniq()
             # Обработка других команд
 
 
+# Пример запуска
 emulator = ShellEmulator('config.xml')
 emulator.run()
