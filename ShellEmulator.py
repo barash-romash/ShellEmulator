@@ -35,7 +35,7 @@ class ShellEmulator:
             for file, owner in files.items():
                 print(owner, file)
         elif arg != '':
-            print("Неизвестная опция", arg)
+            print("Неизвестная опция:", arg)
         else:
             for [file] in self.get_dir_file_list():
                 print(file, end='  ')
@@ -115,12 +115,17 @@ class ShellEmulator:
                 print("Файл не найден")
                 return
             if not file.isfile():
-                print("Файл не найден")
+                print("Невозможно обработать файл")
                 return
-            lines = set()
+            unique_lines = []
+            previous_line = None
+
             for line in tar.extractfile(path):
-                lines.add(line.decode().strip())
-            for i in lines:
+                line = line.decode().strip()
+                if line != previous_line:
+                    unique_lines.append(line)
+                    previous_line = line
+            for i in unique_lines:
                 print(i)
 
     def run(self):
@@ -153,5 +158,6 @@ class ShellEmulator:
                 print("Команда не найдена:", command[0])
 
 
-emulator = ShellEmulator('config.xml')
-emulator.run()
+if __name__ == '__main__':
+    emulator = ShellEmulator('config.xml')
+    emulator.run()
