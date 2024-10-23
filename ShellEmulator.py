@@ -1,163 +1,127 @@
-import tarfile
-import xml.etree.ElementTree as ET
-from pprint import pprint
+import io
+import unittest
+from ShellEmulator import ShellEmulator
+from unittest.mock import patch
 
 
-class ShellEmulator:
-    def __init__(self, config_file):
-        self.file_system_path = self.get_file_path(config_file)
-        self.users = ["root", "User1"]
-        self.users_files = {self.users[0]: [],
-                            self.users[1]: []}
-        self.user_name = self.users[0]
-        self.fill_files_owner()
-        self.prefix = self.user_name + ":~"
-        self.cur_dir = []
-        self.sfl = self.get_sys_file_list()
+class ShellEmulatorTest(unittest.TestCase):
+    def setUp(self):
+        # Инициализация ShellEmulator перед каждым тестом
+        self.se = ShellEmulator("config.xml")
 
-    def fill_files_owner(self):
-        for i in tarfile.open(self.file_system_path, 'r').getnames():
-            self.users_files[self.user_name] += [i]
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_ls_1(self, mock_stdout):
+        self.se.ls()  # Вызов функции ls
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, "d  t.txt")  # Проверка на соответствие ожидаемому выводу
 
-    def get_file_path(self, config_file):
-        tree = ET.parse(config_file)
-        root = tree.getroot()
-        return root.find('file_system_path').text
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_ls_2(self, mock_stdout):
+        self.se.ls('-l')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'root d\nroot t.txt')  # Проверка на соответствие ожидаемому выводу
 
-    def ls(self, arg=''):
-        files = {}
-        if arg == '-l':
-            for [file] in self.get_dir_file_list():
-                path_of_file = self.get_cur_dir_str() + file
-                for owner in self.users:
-                    if path_of_file in self.users_files[owner]:
-                        files[file] = owner
-            for file, owner in files.items():
-                print(owner, file)
-        elif arg != '':
-            print("Неизвестная опция:", arg)
-        else:
-            for [file] in self.get_dir_file_list():
-                print(file, end='  ')
-            print()
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_ls_3(self, mock_stdout):
+        self.se.chown('User1 d')
+        self.se.ls('-l')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'User1 d\nroot t.txt')  # Проверка на соответствие ожидаемому выводу
 
-    def get_dir_file_list(self):
-        fl = [f for f in self.sfl if len(f) == len(self.cur_dir) + 1]
-        fl = [f for f in fl if all(f[i] == self.cur_dir[i] for i in range(len(self.cur_dir)))]
-        fl = [f[len(self.cur_dir):] for f in fl]
-        return fl
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_ls_4(self, mock_stdout):
+        self.se.ls('-lkjfl')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'Не удаётся найти путь')  # Проверка на соответствие ожидаемому выводу
 
-    def get_sys_file_list(self):
-        with tarfile.open("system.tar") as tar:
-            fl = [f.split('/') for f in tar.getnames()]
-            return fl
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_cd_1(self, mock_stdout):
+        self.se.cd('d')
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, '/d/')  # Проверка на соответствие ожидаемому выводу
 
-    def cd(self, path):
-        if path == '..':
-            if len(self.cur_dir) != 0:
-                self.cur_dir.pop()
-        elif path == '/':
-            self.cur_dir = []
-        elif path[0] == '/':
-            path = path[1:].split('/')
-            if path in self.get_sys_file_list():
-                self.cur_dir = path
-            else:
-                print("Не удаётся найти путь")
-        else:
-            path_split = path.split('/')
-            with tarfile.open(self.file_system_path, 'r') as tar:
-                if [path_split[0]] in self.get_dir_file_list() and \
-                        (self.cur_dir + path_split) in self.get_sys_file_list() \
-                        and tar.getmember(self.get_cur_dir_str() + path).isdir():
-                    self.cur_dir.extend(path_split)
-                else:
-                    print("Не удаётся найти путь")
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_cd_2(self, mock_stdout):
+        self.se.cd('d/a')
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, '/d/a/')  # Проверка на соответствие ожидаемому выводу
 
-    def get_cur_dir_str(self):
-        cur_dir_str = ''
-        for i in self.cur_dir:
-            cur_dir_str += i + '/'
-        return cur_dir_str
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_cd_3(self, mock_stdout):
+        self.se.cd('d/a')
+        self.se.cd('..')
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, '/d/')  # Проверка на соответствие ожидаемому выводу
 
-    def pwd(self):
-        print('/', end='')
-        for i in self.cur_dir:
-            print(i, end='/')
-        print()
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_cd_4(self, mock_stdout):
+        self.se.cd('t.txt')
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'Не удаётся найти путь\n/')  # Проверка на соответствие ожидаемому выводу
 
-    def chown(self, arg):
-        owner, filename = arg.split()
-        if owner in self.users_files:
-            path = self.get_cur_dir_str() + filename
-            if path in tarfile.open(self.file_system_path).getnames():
-                if path not in self.users_files[owner]:
-                    for user in self.users:
-                        try:
-                            self.users_files[user].remove(path)
-                        except ValueError:
-                            pass
-                    self.users_files[owner] += [path]
-            else:
-                print('Директория или файл не найдены')
-        else:
-            print("Пользователь не найден")
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_pwd_1(self, mock_stdout):
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, '/')  # Проверка на соответствие ожидаемому выводу
 
-    def uniq(self, path):
-        if len(path) == 0:
-            return
-        if path[0] != '/':
-            path = self.get_cur_dir_str() + path
-        with tarfile.open(self.file_system_path, 'r') as tar:
-            try:
-                file = tar.getmember(path)
-            except KeyError:
-                print("Файл не найден")
-                return
-            if not file.isfile():
-                print("Невозможно обработать файл")
-                return
-            unique_lines = []
-            previous_line = None
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_pwd_2(self, mock_stdout):
+        self.se.cd('d')
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, '/d/')  # Проверка на соответствие ожидаемому выводу
 
-            for line in tar.extractfile(path):
-                line = line.decode().strip()
-                if line != previous_line:
-                    unique_lines.append(line)
-                    previous_line = line
-            for i in unique_lines:
-                print(i)
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_pwd_3(self, mock_stdout):
+        self.se.cd('d/a')
+        self.se.pwd()
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, '/d/a/')  # Проверка на соответствие ожидаемому выводу
 
-    def run(self):
-        while True:
-            line_start = f"{self.user_name}/{self.get_cur_dir_str()}:~ $"
-            command = input(line_start).split(' ', 1)
-            if len(command) == 0:
-                continue
-            elif command[0] == 'exit':
-                break
-            elif command[0] == 'ls':
-                if len(command) == 2:
-                    self.ls(command[1])
-                else:
-                    self.ls()
-            elif command[0] == 'pwd':
-                self.pwd()
-            elif command[0] == 'cd':
-                if len(command) > 1:
-                    self.cd(command[1])
-            elif command[0] == 'uniq':
-                if len(command) > 1:
-                    self.uniq(command[1])
-            elif command[0] == 'chown':
-                if len(command) > 1:
-                    self.chown(command[1])
-            elif command[0] == "sufl":
-                pprint(self.users_files)
-            else:
-                print("Команда не найдена:", command[0])
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_chown_1(self, mock_stdout):
+        self.se.chown('User1 d')
+        self.se.ls('-l')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'User1 d\nroot t.txt')  # Проверка на соответствие ожидаемому выводу
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_chown_2(self, mock_stdout):
+        self.se.chown('User2 d')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'Пользователь не найден')  # Проверка на соответствие ожидаемому выводу
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_chown_3(self, mock_stdout):
+        self.se.chown('User1 d')
+        self.se.chown('root d')
+        self.se.ls('-l')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'root d\nroot t.txt')  # Проверка на соответствие ожидаемому выводу
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_uniq_1(self, mock_stdout):
+        self.se.uniq('t.txt')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'Apple\nPear\nApple\nPear\nCow')  # Проверка на соответствие ожидаемому выводу
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_uniq_2(self, mock_stdout):
+        self.se.uniq('t')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'Файл не найден')  # Проверка на соответствие ожидаемому выводу
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_uniq_3(self, mock_stdout):
+        self.se.uniq('d')
+        output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
+        self.assertEqual(output, 'Невозможно обработать файл')  # Проверка на соответствие ожидаемому выводу
 
 
 if __name__ == '__main__':
-    emulator = ShellEmulator('config.xml')
-    emulator.run()
+    unittest.main()
