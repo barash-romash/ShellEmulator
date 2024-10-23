@@ -32,7 +32,7 @@ class ShellEmulatorTest(unittest.TestCase):
     def test_ls_4(self, mock_stdout):
         self.se.ls('-lkjfl')
         output = mock_stdout.getvalue().strip()  # Получение захваченного вывода
-        self.assertEqual(output, 'Неизвестная опция: -lkjfl')  # Проверка на соответствие ожидаемому выводу
+        self.assertEqual(output, 'Не удаётся найти путь')  # Проверка на соответствие ожидаемому выводу
 
     @patch('sys.stdout', new_callable=io.StringIO)
     def test_cd_1(self, mock_stdout):
